@@ -1,0 +1,142 @@
+services:
+  # HDFS & YARN Components
+  # namenode:
+  #   image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+  #   container_name: namenode
+  #   restart: always
+  #   ports:
+  #     - 9870:9870  # HDFS UI
+  #     - 9000:9000  # HDFS communication
+  #     - 8081:8080  # Spark Master UI (8081 pour éviter conflit avec Airflow)
+  #     - 7077:7077  # Spark Master
+  #   volumes:
+  #     - hadoop_namenode:/hadoop/dfs/name
+  #   environment:
+  #     - CLUSTER_NAME=hadoop-cluster
+  #     - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+  #   env_file:
+  #     - ./hadoop.env
+  #   networks:
+  #     - global-net
+
+  # datanode:
+  #   image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+  #   container_name: datanode
+  #   restart: always
+  #   depends_on:
+  #     - namenode
+  #   volumes:
+  #     - hadoop_datanode:/hadoop/dfs/data
+  #   environment:
+  #     - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+  #     - SERVICE_PRECONDITION=namenode:9870
+  #   ports:
+  #     - 9864:9864  # DataNode UI
+  #   env_file:
+  #     - ./hadoop.env
+  #   networks:
+  #     - global-net
+
+  # resourcemanager:
+  #   image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
+  #   container_name: resourcemanager
+  #   restart: always
+  #   depends_on:
+  #     - namenode
+  #     - datanode
+  #   environment:
+  #     - SERVICE_PRECONDITION=namenode:9000 namenode:9870 datanode:9864
+  #   ports:
+  #     - 8088:8088  # YARN ResourceManager UI
+  #   env_file:
+  #     - ./hadoop.env
+  #   networks:
+  #     - global-net
+
+  # nodemanager:
+  #   image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+  #   container_name: nodemanager
+  #   restart: always
+  #   depends_on:
+  #     - namenode
+  #     - datanode
+  #     - resourcemanager
+  #   environment:
+  #     - SERVICE_PRECONDITION=namenode:9000 namenode:9870 datanode:9864 resourcemanager:8088
+  #   ports:
+  #     - 8042:8042  # NodeManager UI
+  #   env_file:
+  #     - ./hadoop.env
+  #   networks:
+  #     - global-net
+
+  # Postgres for relational database
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    networks:
+      - global-net
+
+  # pgAdmin for Postgres management
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - 5050:80  # pgAdmin UI
+    depends_on:
+      - postgres
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - global-net
+
+  # Portainer for managing Docker services
+  # portainer:
+  #   image: portainer/portainer-ce:latest
+  #   container_name: portainer-reco
+  #   restart: always
+  #   ports:
+  #     - 9001:9000  # Portainer UI
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #     - portainer_data:/data
+  #   networks:
+  #     - global-net
+
+  redis:
+    image: redis:7.0.15
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    environment:
+      - REDIS_PASSWORD=admin
+    command: redis-server --requirepass admin
+    networks:
+      - global-net
+    restart: unless-stopped
+
+# Définition des volumes
+volumes:
+  # hadoop_namenode:
+  # hadoop_datanode:
+  redis_data:
+  postgres_data:
+  pgadmin_data:
+
+# Définition du réseau global
+networks:
+  global-net:
+    driver: bridge
