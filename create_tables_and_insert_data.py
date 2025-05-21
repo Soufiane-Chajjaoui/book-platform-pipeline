@@ -254,10 +254,10 @@ def insert_interactions_today():
 
 # Run script
 if __name__ == "__main__":
-    print("Creating tables...")
-    create_tables()
-    print("Inserting random data...")
-    insert_random_data()
+    # print("Creating tables...")
+    # create_tables()
+    # print("Inserting random data...")
+    # insert_random_data()
     print("Inserting daily interactions...")
     insert_interactions_today()
     print("Done!")

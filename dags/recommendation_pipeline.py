@@ -4,19 +4,24 @@ from airflow.providers.ssh.hooks.ssh import SSHHook
 from airflow.models import Connection
 from airflow.utils.session import provide_session
 from airflow.settings import Session
-from datetime import datetime
+from datetime import datetime , timedelta
 
 # Configuration variables
 host_postgres = "192.168.11.110"
-host_vm = "192.168.11.120"
+host_vm = "192.168.11.108"
 user_vm = "hduser"
 postgres_port = "5432"
 postgres_db = "book-platform-db"
 postgres_user = "admin"
 postgres_password = "admin"
 dtable = "interaction"
+interactions_date = (datetime.today() - timedelta(days=1)).strftime('%Y/%m/%d')
+redis_auth = "admin"
+redis_host = "192.168.11.110"
 outPutRaw = "book-recommendation/raw/interactions"
 SPARK_SUBMIT_PATH = "/usr/local/spark/bin/spark-submit"
+date_execution = datetime.today().strftime('%Y/%m/%d')
+
 
 # Default DAG arguments
 default_args = {
@@ -59,7 +64,7 @@ with DAG(
     'recommendation_pipeline',
     default_args=default_args,
     description='Pipeline to export interactions to HDFS, preprocess, merge, train ALS, and write recommendations to PostgreSQL via SSH Spark on YARN',
-    schedule_interval='@daily',
+    schedule_interval='30 1 * * *',  # tous les jours à 1h30 du matin
     start_date=datetime(2025, 4, 1),
     catchup=False,
 ) as dag:
@@ -72,7 +77,7 @@ with DAG(
     extractData = SSHOperator(
         task_id='extractData',
         ssh_hook=ssh_hook,
-        command=f'{SPARK_SUBMIT_PATH} --master yarn   --class LoadInteractions   --driver-memory 1g  /home/hduser/book-reco/target/scala-2.12/bookrecommendation_2.12-1.0.jar {host_postgres} {postgres_port} {postgres_db} {postgres_user} {postgres_password} {dtable} {outPutRaw}'
+        command=f'{SPARK_SUBMIT_PATH} --master yarn --class LoadInteractions --driver-memory 1g  /home/hduser/book-reco/target/scala-2.12/bookrecommendation_2.12-1.0.jar {host_postgres} {postgres_port} {postgres_db} {postgres_user} {postgres_password} {outPutRaw}'
     )
 
     dataMerger = SSHOperator(
@@ -81,4 +86,22 @@ with DAG(
         command=f'{SPARK_SUBMIT_PATH} --master yarn   --class DailyDataMerger --driver-memory 1g  /home/hduser/book-reco/target/scala-2.12/bookrecommendation_2.12-1.0.jar'
     )
 
-    extractData >> dataMerger
+    trainSGD = SSHOperator(
+        task_id = 'trainSGD',
+        ssh_hook=ssh_hook,
+        command=f'cd ~/sysrd-projet && sbt clean assembly && {SPARK_SUBMIT_PATH} --class org.recommender.UltraRecommend --master local[*]  /home/hduser/sysrd-projet/target/scala-2.12/BookSGD-assembly-0.1.jar 5  hdfs://localhost:9000/book-recommendation/raw/interactions/{interactions_date}  hdfs://localhost:9000/book-recommendation/recommendations/{date_execution}'
+    )
+
+    cleanCacheRedis = SSHOperator(
+        task_id = 'cleanCacheRedis',
+        ssh_hook=ssh_hook,
+        command=f'cd ~/book-reco && {SPARK_SUBMIT_PATH} --master local[*] --class RedisFlushAll target/scala-2.12/bookrecommendation_2.12-1.0.jar {redis_host} {redis_auth}'
+    )
+
+    putOnCache = SSHOperator(
+        task_id = 'putOnCache',
+        ssh_hook=ssh_hook,
+        command=f'cd ~/book-reco && {SPARK_SUBMIT_PATH} --master local[*] --class BookRecommendation target/scala-2.12/bookrecommendation_2.12-1.0.jar {redis_host} {redis_auth} {host_postgres} {postgres_password} {date_execution}'
+    )
+
+    extractData >> trainSGD >> cleanCacheRedis >> putOnCache

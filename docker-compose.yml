@@ -114,19 +114,29 @@ services:
   #   networks:
   #     - global-net
 
-  redis:
-    image: redis:7.0.15
-    container_name: redis
-    ports:
-      - "6379:6379"
+  # redis:
+  #   image: redis:7.0.15
+  #   container_name: redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   environment:
+  #     - REDIS_PASSWORD=admin
+  #   command: redis-server --requirepass admin
+  #   networks:
+  #     - global-net
+  #   restart: unless-stopped
+  redis-json:
+    image: redis/redis-stack:latest
+    container_name: redis-json
     volumes:
       - redis_data:/data
+    ports:
+      - "6379:6379"
     environment:
       - REDIS_PASSWORD=admin
-    command: redis-server --requirepass admin
-    networks:
-      - global-net
-    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "admin"]
 
 # Définition des volumes
 volumes:
