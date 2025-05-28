@@ -5,6 +5,7 @@ This project implements a book recommendation system using a data pipeline that 
 ## Pipeline Architecture
 
 The pipeline processes user interactions daily, generates recommendations, and serves them to clients in Batch. Below is an overview of the workflow:
+![Architecture du pipeline](./hdfs.png)
 
 ### 1. Data Ingestion
 - **Client externe : Envoi des interactions** → **API Backend** → **PostgreSQL**
