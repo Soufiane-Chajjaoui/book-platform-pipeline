@@ -137,6 +137,8 @@ services:
     environment:
       - REDIS_PASSWORD=admin
     command: ["redis-server", "--requirepass", "admin"]
+    networks:
+      - global-net
 
 # Définition des volumes
 volumes:
